@@ -1,0 +1,150 @@
+<!-- index.html -->
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>TCI - Transcomunicação Instrumental</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <style>
+    body { background: black; color: white; font-family: sans-serif; }
+    canvas { display: block; margin: auto; background: #111; border: 1px solid #6B21A8; }
+    audio::-webkit-media-controls-panel {
+      background-color: #000000;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+  <header class="text-center py-6 bg-gradient-to-r from-purple-800 via-black to-indigo-900">
+    <h1 class="text-4xl font-bold">TCI - Transcomunicação Instrumental</h1>
+    <p class="text-lg">Experimentos com IA, EVP, espectrograma e ruído branco</p>
+  </header>
+
+  <main class="p-6 max-w-5xl mx-auto space-y-10">
+    
+    <!-- Linha do Tempo -->
+    <section>
+      <h2 class="text-2xl font-semibold mb-4">Linha do Tempo TCI</h2>
+      <div class="border-l border-purple-500 pl-6 space-y-4">
+        <div><span class="font-bold text-purple-400">1959:</span> Jürgenson grava vozes inexplicáveis.</div>
+        <div><span class="font-bold text-purple-400">1968:</span> Raudive publica "Breakthrough".</div>
+        <div><span class="font-bold text-purple-400">1980s:</span> Klaus Schreiber faz transimagens com TV analógica.</div>
+        <div><span class="font-bold text-purple-400">1990s:</span> Sonia Rinaldi pesquisa com crianças desencarnadas.</div>
+        <div><span class="font-bold text-purple-400">2020s:</span> TCI é integrada com IA e espectrogramas em tempo real.</div>
+      </div>
+    </section>
+
+    <!-- Gravador EVP -->
+    <section>
+      <h2 class="text-2xl font-semibold mb-4">Gravador EVP com Ruído Branco</h2>
+      <button id="start-record" class="bg-green-600 px-4 py-2 rounded">Gravar</button>
+      <button id="stop-record" class="bg-red-600 px-4 py-2 rounded ml-2">Parar</button>
+      <audio id="white-noise" loop></audio>
+      <ul id="recordingsList" class="mt-4 space-y-2"></ul>
+    </section>
+
+    <!-- Ghost Box -->
+    <section>
+      <h2 class="text-2xl font-semibold mb-4">Simulador Ghost Box</h2>
+      <button id="scan-radio" class="bg-yellow-600 px-4 py-2 rounded">Iniciar varredura</button>
+      <audio id="radio-stream" controls class="mt-4 w-full"></audio>
+    </section>
+
+    <!-- Espectrograma com IA -->
+    <section>
+      <h2 class="text-2xl font-semibold mb-4">TCI com IA e Espectrograma</h2>
+      <p>Visualização espectral em tempo real com detecção de picos sonoros.</p>
+      <canvas id="spectrogram" width="600" height="200"></canvas>
+      <div id="ia-log" class="text-sm text-green-400 mt-2 font-mono h-20 overflow-y-auto"></div>
+    </section>
+  </main>
+
+  <script>
+    const whiteNoise = document.getElementById('white-noise');
+    whiteNoise.src = 'https://cdn.pixabay.com/download/audio/2022/03/15/audio_91a0bb6322.mp3?filename=white-noise-10763.mp3';
+
+    let mediaRecorder;
+    let chunks = [];
+
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+      mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder.ondataavailable = e => chunks.push(e.data);
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(chunks, { type: 'audio/webm' });
+        chunks = [];
+        const audioURL = URL.createObjectURL(blob);
+        const li = document.createElement('li');
+        const audio = document.createElement('audio');
+        audio.controls = true;
+        audio.src = audioURL;
+        li.appendChild(audio);
+        document.getElementById('recordingsList').appendChild(li);
+      };
+
+      // Espectrograma
+      const canvas = document.getElementById('spectrogram');
+      const ctx = canvas.getContext('2d');
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const source = audioCtx.createMediaStreamSource(stream);
+      const analyser = audioCtx.createAnalyser();
+      source.connect(analyser);
+      analyser.fftSize = 256;
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+      let offset = 0;
+      const iaLog = document.getElementById('ia-log');
+
+      function draw() {
+        requestAnimationFrame(draw);
+        analyser.getByteFrequencyData(dataArray);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+        ctx.fillRect(offset, 0, 2, canvas.height);
+        dataArray.forEach((value, i) => {
+          const y = canvas.height - (value / 255) * canvas.height;
+          ctx.fillStyle = `rgb(${value}, ${value * 0.4}, ${255 - value})`;
+          ctx.fillRect(offset, y, 2, 1);
+        });
+        offset = (offset + 2) % canvas.width;
+
+        const max = Math.max(...dataArray);
+        if (max > 180) {
+          const time = new Date().toLocaleTimeString();
+          const msg = `[${time}] Pico sonoro detectado: ${max}`;
+          const div = document.createElement('div');
+          div.textContent = msg;
+          iaLog.appendChild(div);
+          iaLog.scrollTop = iaLog.scrollHeight;
+        }
+      }
+
+      draw();
+    });
+
+    document.getElementById('start-record').onclick = () => {
+      mediaRecorder.start();
+      whiteNoise.play();
+    };
+
+    document.getElementById('stop-record').onclick = () => {
+      mediaRecorder.stop();
+      whiteNoise.pause();
+      whiteNoise.currentTime = 0;
+    };
+
+    const radio = document.getElementById('radio-stream');
+    const stations = [
+      'https://icecast.radiofrance.fr/fip-hifi.aac',
+      'https://stream.live.vc.bbcmedia.co.uk/bbc_radio_fourlw_online_nonuk',
+      'https://us1.internet-radio.com/proxy/elitefm?mp=/stream'
+    ];
+    let currentStation = 0;
+
+    document.getElementById('scan-radio').onclick = () => {
+      currentStation = (currentStation + 1) % stations.length;
+      radio.src = stations[currentStation];
+      radio.play();
+    };
+  </script>
+</body>
+</html>
